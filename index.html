@@ -21,7 +21,7 @@ body {
 }
 
 .calculator {
-    width: 340px;
+    width: 360px;
     max-width: 100%;
     padding: 22px;
     background: #171c25;
@@ -52,7 +52,7 @@ body {
 .current {
     width: 100%;
     text-align: right;
-    font-size: clamp(32px, 10vw, 48px);
+    font-size: clamp(28px, 8vw, 42px);
     font-weight: 300;
     overflow-wrap: anywhere;
 }
@@ -64,12 +64,13 @@ body {
 }
 
 button {
-    height: 62px;
+    min-width: 0;
+    height: 58px;
     border: 1px solid #414b5a;
     border-radius: 17px;
     background: #29313e;
     color: #f9fafb;
-    font-size: 23px;
+    font-size: 22px;
     cursor: pointer;
     box-shadow: 0 4px 6px #0004;
     transition: transform .08s, filter .1s;
@@ -95,9 +96,7 @@ button.zero {
     grid-column: span 2;
 }
 
-button:hover {
-    filter: brightness(1.15);
-}
+button:hover { filter: brightness(1.15); }
 
 footer {
     text-align: center;
@@ -118,156 +117,286 @@ footer {
     <section class="keys">
         <button class="function" onclick="clearDisplay()">AC</button>
         <button class="function" onclick="backspace()">⌫</button>
+        <button class="function" onclick="addSymbol('(')">(</button>
+        <button class="function" onclick="addSymbol(')')">)</button>
+
         <button class="function" onclick="percent()">%</button>
-        <button class="operator" onclick="chooseOperator('/')">÷</button>
+        <button class="function" onclick="addSymbol('^')">xʸ</button>
+        <button class="operator" onclick="addSymbol('/')">÷</button>
+        <button class="operator" onclick="addSymbol('*')">×</button>
 
         <button onclick="digit('7')">7</button>
         <button onclick="digit('8')">8</button>
         <button onclick="digit('9')">9</button>
-        <button class="operator" onclick="chooseOperator('*')">×</button>
+        <button class="operator" onclick="addSymbol('-')">−</button>
 
         <button onclick="digit('4')">4</button>
         <button onclick="digit('5')">5</button>
         <button onclick="digit('6')">6</button>
-        <button class="operator" onclick="chooseOperator('-')">−</button>
+        <button class="operator" onclick="addSymbol('+')">+</button>
 
         <button onclick="digit('1')">1</button>
         <button onclick="digit('2')">2</button>
         <button onclick="digit('3')">3</button>
-        <button class="operator" onclick="chooseOperator('+')">+</button>
+        <button class="operator" onclick="calculate()">=</button>
 
         <button class="zero" onclick="digit('0')">0</button>
         <button onclick="decimal()">.</button>
-        <button class="operator" onclick="calculate()">=</button>
+        <button class="function" onclick="clearDisplay()">C</button>
     </section>
 
-    <footer>CALCULATOR</footer>
+    <footer>BODMAS CALCULATOR</footer>
 </main>
 
 <script>
-let current = "0";
-let stored = null;
-let operator = null;
-let waiting = false;
+let expression = "";
 let finished = false;
 
 const display = document.getElementById("current");
 const previous = document.getElementById("previous");
 
 function render() {
-    display.textContent = current;
+    display.textContent = expression || "0";
 }
 
 function digit(n) {
-    if (current === "Error" || waiting || finished) {
-        current = n;
-        waiting = false;
+    if (expression === "Error" || finished) {
+        expression = "";
         finished = false;
-    } else if (current === "0") {
-        current = n;
-    } else if (current.replace("-", "").length < 15) {
-        current += n;
     }
+
+    expression += n;
     render();
 }
 
 function decimal() {
-    if (current === "Error" || waiting || finished) {
-        current = "0.";
-        waiting = false;
+    if (expression === "Error" || finished) {
+        expression = "";
         finished = false;
-    } else if (!current.includes(".")) {
-        current += ".";
     }
+
+    // Find the current number and avoid duplicate decimal points.
+    const part = expression.split(/[+\-*/^()%]/).pop();
+
+    if (!part.includes(".")) {
+        if (part === "") expression += "0";
+        expression += ".";
+    }
+
     render();
 }
 
-function chooseOperator(op) {
-    if (current === "Error") return;
+function addSymbol(symbol) {
+    if (expression === "Error") return;
 
-    if (operator && !waiting) calculate();
+    if (finished) {
+        if ("+-*/^".includes(symbol)) {
+            finished = false;
+        } else {
+            expression = "";
+            finished = false;
+        }
+    }
 
-    stored = Number(current);
-    operator = op;
-    waiting = true;
-    finished = false;
-    previous.textContent = current + " " +
-        ({"+":"+","-":"−","*":"×","/":"÷"}[op]);
+    const last = expression.slice(-1);
+
+    if ("+-*/^".includes(symbol)) {
+        if (expression === "" && symbol !== "-") return;
+
+        if ("+-*/^".includes(last)) {
+            // Allow a negative number, such as 5 × -2.
+            if (symbol === "-" && last !== "-") {
+                expression += symbol;
+            } else if (expression.length > 1 &&
+                       "+-*/^".includes(expression.slice(-2, -1))) {
+                expression = expression.slice(0, -1) + symbol;
+            } else if (symbol !== "-" || last === "-") {
+                expression = expression.slice(0, -1) + symbol;
+            }
+        } else {
+            expression += symbol;
+        }
+    } else if (symbol === "(") {
+        expression += symbol;
+    } else if (symbol === ")") {
+        if (expression && !"+-*/^(".includes(last)) {
+            expression += symbol;
+        }
+    }
+
+    render();
+}
+
+function percent() {
+    if (!expression || expression === "Error") return;
+
+    // A percentage is treated as division by 100.
+    if (/[0-9)]$/.test(expression)) {
+        expression += "%";
+    }
+
+    render();
+}
+
+// A small expression parser applies normal mathematical precedence.
+// It does not execute arbitrary JavaScript code.
+function evaluate(source) {
+    const tokens = source.match(
+        /\d*\.?\d+(?:e[+-]?\d+)?|[()+\-*/^%]/gi
+    );
+
+    if (!tokens) throw new Error("Invalid expression");
+
+    const joined = tokens.join("");
+    if (joined !== source.replace(/\s/g, "")) {
+        throw new Error("Invalid expression");
+    }
+
+    let pos = 0;
+
+    function peek() {
+        return tokens[pos];
+    }
+
+    function take() {
+        return tokens[pos++];
+    }
+
+    function primary() {
+        const token = take();
+
+        if (token === "(") {
+            const value = addSub();
+            if (take() !== ")") throw new Error("Missing bracket");
+            return value;
+        }
+
+        if (token === undefined || !/^\d*\.?\d+(?:e[+-]?\d+)?$/i.test(token)) {
+            throw new Error("Invalid number");
+        }
+
+        return Number(token);
+    }
+
+    function power() {
+        let value = primary();
+
+        // Exponents are evaluated from right to left.
+        if (peek() === "^") {
+            take();
+            value = Math.pow(value, unary());
+        }
+
+        // Percent works as a postfix operator: 50% = 0.5.
+        while (peek() === "%") {
+            take();
+            value /= 100;
+        }
+
+        return value;
+    }
+
+    function unary() {
+        if (peek() === "+") {
+            take();
+            return unary();
+        }
+
+        if (peek() === "-") {
+            take();
+            return -unary();
+        }
+
+        return power();
+    }
+
+    function mulDiv() {
+        let value = unary();
+
+        while (peek() === "*" || peek() === "/") {
+            const op = take();
+            const right = unary();
+
+            if (op === "/" && right === 0) {
+                throw new Error("Cannot divide by zero");
+            }
+
+            value = op === "*" ? value * right : value / right;
+        }
+
+        return value;
+    }
+
+    function addSub() {
+        let value = mulDiv();
+
+        while (peek() === "+" || peek() === "-") {
+            const op = take();
+            const right = mulDiv();
+            value = op === "+" ? value + right : value - right;
+        }
+
+        return value;
+    }
+
+    const result = addSub();
+
+    if (pos !== tokens.length || !Number.isFinite(result)) {
+        throw new Error("Invalid expression");
+    }
+
+    return result;
 }
 
 function calculate() {
-    if (operator === null || stored === null || current === "Error") return;
+    if (!expression || expression === "Error") return;
 
-    const a = stored;
-    const b = Number(current);
-    let result;
+    const original = expression;
 
-    if (operator === "+") result = a + b;
-    if (operator === "-") result = a - b;
-    if (operator === "*") result = a * b;
-    if (operator === "/") {
-        if (b === 0) {
-            current = "Error";
-            previous.textContent = "Cannot divide by zero";
-            stored = null;
-            operator = null;
-            waiting = true;
-            render();
-            return;
-        }
-        result = a / b;
+    try {
+        // Allow a trailing decimal point, such as 5.
+        const result = evaluate(expression);
+        expression = String(Number(result.toPrecision(10)));
+        previous.textContent = original.replace(/\*/g, "×")
+            .replace(/\//g, "÷") + " =";
+        finished = true;
+    } catch (error) {
+        previous.textContent = error.message || "Invalid expression";
+        expression = "Error";
+        finished = true;
     }
 
-    previous.textContent = a + " " +
-        ({"+":"+","-":"−","*":"×","/":"÷"}[operator]) +
-        " " + b + " =";
-
-    current = String(Number(result.toPrecision(10)));
-    stored = null;
-    operator = null;
-    waiting = true;
-    finished = true;
     render();
 }
 
 function clearDisplay() {
-    current = "0";
-    stored = null;
-    operator = null;
-    waiting = false;
+    expression = "";
     finished = false;
     previous.textContent = "";
     render();
 }
 
 function backspace() {
-    if (waiting || finished || current === "Error") {
-        current = "0";
-        waiting = false;
+    if (finished || expression === "Error") {
+        expression = "";
         finished = false;
     } else {
-        current = current.length > 1 ? current.slice(0, -1) : "0";
-        if (current === "-") current = "0";
+        expression = expression.slice(0, -1);
     }
+
     render();
 }
 
-function percent() {
-    if (current !== "Error") {
-        current = String(Number(current) / 100);
-        waiting = false;
-        finished = false;
-        render();
+document.addEventListener("keydown", event => {
+    if (/^[0-9]$/.test(event.key)) digit(event.key);
+    else if (event.key === ".") decimal();
+    else if (["+", "-", "*", "/", "^", "(", ")"].includes(event.key)) {
+        addSymbol(event.key);
     }
-}
-
-document.addEventListener("keydown", e => {
-    if (/^[0-9]$/.test(e.key)) digit(e.key);
-    else if (e.key === ".") decimal();
-    else if (["+", "-", "*", "/"].includes(e.key)) chooseOperator(e.key);
-    else if (e.key === "Enter" || e.key === "=") calculate();
-    else if (e.key === "Backspace") backspace();
-    else if (e.key === "Escape") clearDisplay();
+    else if (event.key === "%") percent();
+    else if (event.key === "Enter" || event.key === "=") calculate();
+    else if (event.key === "Backspace") backspace();
+    else if (event.key === "Escape") clearDisplay();
 });
 </script>
 </body>
