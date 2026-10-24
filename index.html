@@ -1,0 +1,274 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculator App</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #111827, #263449);
+    font-family: Arial, sans-serif;
+}
+
+.calculator {
+    width: 340px;
+    max-width: 100%;
+    padding: 22px;
+    background: #171c25;
+    border: 1px solid #394454;
+    border-radius: 28px;
+    box-shadow: 0 25px 60px #0008;
+}
+
+.display {
+    min-height: 125px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-end;
+    padding: 16px 8px 24px;
+    margin-bottom: 20px;
+    color: white;
+    overflow: hidden;
+}
+
+.previous {
+    min-height: 24px;
+    color: #9ca3af;
+    font-size: 15px;
+    overflow-wrap: anywhere;
+}
+
+.current {
+    width: 100%;
+    text-align: right;
+    font-size: clamp(32px, 10vw, 48px);
+    font-weight: 300;
+    overflow-wrap: anywhere;
+}
+
+.keys {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+button {
+    height: 62px;
+    border: 1px solid #414b5a;
+    border-radius: 17px;
+    background: #29313e;
+    color: #f9fafb;
+    font-size: 23px;
+    cursor: pointer;
+    box-shadow: 0 4px 6px #0004;
+    transition: transform .08s, filter .1s;
+}
+
+button:active {
+    transform: scale(.94);
+    filter: brightness(1.3);
+}
+
+button.function {
+    background: #414958;
+    color: #e5e7eb;
+}
+
+button.operator {
+    background: #ff851b;
+    color: white;
+    border-color: #ff9c43;
+}
+
+button.zero {
+    grid-column: span 2;
+}
+
+button:hover {
+    filter: brightness(1.15);
+}
+
+footer {
+    text-align: center;
+    color: #8993a3;
+    font-size: 12px;
+    padding-top: 18px;
+}
+</style>
+</head>
+
+<body>
+<main class="calculator">
+    <section class="display">
+        <div class="previous" id="previous"></div>
+        <div class="current" id="current">0</div>
+    </section>
+
+    <section class="keys">
+        <button class="function" onclick="clearDisplay()">AC</button>
+        <button class="function" onclick="backspace()">⌫</button>
+        <button class="function" onclick="percent()">%</button>
+        <button class="operator" onclick="chooseOperator('/')">÷</button>
+
+        <button onclick="digit('7')">7</button>
+        <button onclick="digit('8')">8</button>
+        <button onclick="digit('9')">9</button>
+        <button class="operator" onclick="chooseOperator('*')">×</button>
+
+        <button onclick="digit('4')">4</button>
+        <button onclick="digit('5')">5</button>
+        <button onclick="digit('6')">6</button>
+        <button class="operator" onclick="chooseOperator('-')">−</button>
+
+        <button onclick="digit('1')">1</button>
+        <button onclick="digit('2')">2</button>
+        <button onclick="digit('3')">3</button>
+        <button class="operator" onclick="chooseOperator('+')">+</button>
+
+        <button class="zero" onclick="digit('0')">0</button>
+        <button onclick="decimal()">.</button>
+        <button class="operator" onclick="calculate()">=</button>
+    </section>
+
+    <footer>CALCULATOR</footer>
+</main>
+
+<script>
+let current = "0";
+let stored = null;
+let operator = null;
+let waiting = false;
+let finished = false;
+
+const display = document.getElementById("current");
+const previous = document.getElementById("previous");
+
+function render() {
+    display.textContent = current;
+}
+
+function digit(n) {
+    if (current === "Error" || waiting || finished) {
+        current = n;
+        waiting = false;
+        finished = false;
+    } else if (current === "0") {
+        current = n;
+    } else if (current.replace("-", "").length < 15) {
+        current += n;
+    }
+    render();
+}
+
+function decimal() {
+    if (current === "Error" || waiting || finished) {
+        current = "0.";
+        waiting = false;
+        finished = false;
+    } else if (!current.includes(".")) {
+        current += ".";
+    }
+    render();
+}
+
+function chooseOperator(op) {
+    if (current === "Error") return;
+
+    if (operator && !waiting) calculate();
+
+    stored = Number(current);
+    operator = op;
+    waiting = true;
+    finished = false;
+    previous.textContent = current + " " +
+        ({"+":"+","-":"−","*":"×","/":"÷"}[op]);
+}
+
+function calculate() {
+    if (operator === null || stored === null || current === "Error") return;
+
+    const a = stored;
+    const b = Number(current);
+    let result;
+
+    if (operator === "+") result = a + b;
+    if (operator === "-") result = a - b;
+    if (operator === "*") result = a * b;
+    if (operator === "/") {
+        if (b === 0) {
+            current = "Error";
+            previous.textContent = "Cannot divide by zero";
+            stored = null;
+            operator = null;
+            waiting = true;
+            render();
+            return;
+        }
+        result = a / b;
+    }
+
+    previous.textContent = a + " " +
+        ({"+":"+","-":"−","*":"×","/":"÷"}[operator]) +
+        " " + b + " =";
+
+    current = String(Number(result.toPrecision(10)));
+    stored = null;
+    operator = null;
+    waiting = true;
+    finished = true;
+    render();
+}
+
+function clearDisplay() {
+    current = "0";
+    stored = null;
+    operator = null;
+    waiting = false;
+    finished = false;
+    previous.textContent = "";
+    render();
+}
+
+function backspace() {
+    if (waiting || finished || current === "Error") {
+        current = "0";
+        waiting = false;
+        finished = false;
+    } else {
+        current = current.length > 1 ? current.slice(0, -1) : "0";
+        if (current === "-") current = "0";
+    }
+    render();
+}
+
+function percent() {
+    if (current !== "Error") {
+        current = String(Number(current) / 100);
+        waiting = false;
+        finished = false;
+        render();
+    }
+}
+
+document.addEventListener("keydown", e => {
+    if (/^[0-9]$/.test(e.key)) digit(e.key);
+    else if (e.key === ".") decimal();
+    else if (["+", "-", "*", "/"].includes(e.key)) chooseOperator(e.key);
+    else if (e.key === "Enter" || e.key === "=") calculate();
+    else if (e.key === "Backspace") backspace();
+    else if (e.key === "Escape") clearDisplay();
+});
+</script>
+</body>
+</html>
